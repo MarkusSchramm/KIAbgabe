@@ -5,8 +5,6 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import pretty_midi as pm
-import seaborn as sns
-from matplotlib import pyplot as plt
 from typing import Optional
 
 class Model():
@@ -16,7 +14,7 @@ class Model():
         np.random.seed(self.seed)
         self.key_order = ['pitch', 'step', 'duration']
         self.vocab_size = 128
-        self.sequence_length = 50
+        self.sequence_length = 10
 
         self.data_dir = pathlib.Path('data/maestro-v2.0.0')
         if not self.data_dir.exists():
@@ -125,9 +123,9 @@ class Model():
 
     def notes_to_midi(
         notes: pd.DataFrame,
-        instrument_name: str,
         velocity: int = 100,
-        out_file: Optional[str] = 'new.mid', 
+        instrument_name: Optional[str] = 'Acoustic Grand Piano',
+        out_file: Optional[str] = 'new.mid' 
         ) -> pm.PrettyMIDI:
         midi_data = pm.PrettyMIDI()
         instrument = pm.Instrument(
@@ -244,23 +242,9 @@ class Model():
         generated_notes = pd.DataFrame(
             generated_notes, columns=(*self.key_order, 'start', 'end'))
 
-        
-        self.out_pm = self.notes_to_midi(
-            generated_notes, instrument_name=self.instrument_name)
+        self.out_pm = Model.notes_to_midi(generated_notes)
         return generated_notes
     
-    def plot_distributions(notes: pd.DataFrame, drop_percentile=2.5):
-        plt.figure(figsize=[15, 5])
-        plt.subplot(1, 3, 1)
-        sns.histplot(notes, x="pitch", bins=20)
-
-        plt.subplot(1, 3, 2)
-        max_step = np.percentile(notes['step'], 100 - drop_percentile)
-        sns.histplot(notes, x="step", bins=np.linspace(0, max_step, 21))
-
-        plt.subplot(1, 3, 3)
-        max_duration = np.percentile(notes['duration'], 100 - drop_percentile)
-        sns.histplot(notes, x="duration", bins=np.linspace(0, max_duration, 21))
 
 def main():
     mo = Model()

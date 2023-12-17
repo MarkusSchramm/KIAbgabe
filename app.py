@@ -1,12 +1,9 @@
 import pygame
 import numpy as np
 import seaborn as sns
-import pandas as pd
 import tkinter as tk
-from tkinter import messagebox
 from tkinter.filedialog import askopenfilename, asksaveasfile, askopenfile
-from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
-from matplotlib.backend_bases import key_press_handler
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from typing import Optional
 import model as dm
@@ -22,7 +19,6 @@ class App(tk.Tk):
         self.notes = []
         self.geometry('1500x1200')
         self.title('KI Abgabe - Markus Schramm(11016480)')
-        self.iconphoto(False, tk.PhotoImage(file='Untitled.png'))
         self.plot = False
         self.add_input()
         self.add_output()
@@ -182,10 +178,11 @@ class App(tk.Tk):
         self.plot_MIDI(5,4)
 
     def train_model(self):
-        self.data_model.train_model(50)
+        self.data_model.train_model(10)
 
     def generate_song(self):
         self.musicfile = self.data_model.predict_notes()
+        self.play_MIDI()
         self.plot_MIDI(5,4)
 
     def asksaveasfile(self):
