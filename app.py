@@ -13,6 +13,7 @@ class App(tk.Tk):
         tk.Tk.__init__(self)
         pygame.mixer.init()
         self.data_model = dm.Model()
+        self.trained = False
         self.pause = False
         self.musicfile = None
         self.instrument = 'Acoustic Grand Piano'
@@ -29,11 +30,7 @@ class App(tk.Tk):
         self.file_menu = tk.Menu(self.menubar)
         self.config(menu=self.menubar)
         self.menubar.add_cascade(label="File", menu=self.file_menu)
-        self.file_menu.add_command(label="New", command = self.clear_MIDI)
-        self.file_menu.add_command(label="Open" , command = self.askopenfile)
-        self.file_menu.add_separator()
-        self.file_menu.add_command(label="Save As", command=self.asksaveasfile)
-        self.file_menu.add_separator()
+        self.file_menu.add_command(label="Clear", command = self.clear_MIDI)
         self.file_menu.add_command(label="Exit", command=self.quit)
 
         #welcome text
@@ -49,15 +46,6 @@ class App(tk.Tk):
             command=lambda: self.open_MIDI()
             )
         self.btnOpen.grid(row=1, column = 0)
-
-        self.btnSave = tk.Button(
-            self, 
-            text="Save MIDI", 
-            bg="white", 
-            fg="black",
-            command=lambda: self.asksaveasfile()
-            )
-        self.btnSave.grid(row=1, column = 1)
 
         self.btnClear = tk.Button(
             self, 
@@ -112,7 +100,7 @@ class App(tk.Tk):
         self.btnGen.grid(row=3, column = 2)
     
     def plot_MIDI(self, row: Optional[int] = 0, col: Optional[int] = 0, count: Optional[int] = None):                
-        fig = Figure(figsize=(20, 4))
+        fig = Figure(figsize=(5, 5))
         canvas = FigureCanvasTkAgg(fig, master=self)
         if len(self.notes) != 0: 
             if count:
@@ -128,26 +116,34 @@ class App(tk.Tk):
 
     def plot_distributions(self, row: Optional[int] = 0, col: Optional[int] = 0):
         fig = Figure(figsize=[15, 5])
-        canvas = FigureCanvasTkAgg(fig, master=self)
-        fig.add_subplot(131)
-        sns.histplot(self.notes, x="pitch", bins=20)
-        canvas.draw()
-        canvas.get_tk_widget().grid(row=row, column=col)
+        fig1 = fig
+        fig2 = fig
+        fig3 = fig
 
-        fig = Figure(figsize=[15, 5])
-        canvas = FigureCanvasTkAgg(fig, master=self)
+        
+        fig1.add_subplot(131)
+        sns.histplot(self.notes, x="pitch", bins=20)
+        canvas1 = FigureCanvasTkAgg(fig1, master=self)
+        canvas1.draw()
+        canvas1.get_tk_widget().grid(row=row, column=0)
+
+        fig2.add_subplot(131)
         max_step = np.percentile(self.notes['step'], 100 - 2.5)
         sns.histplot(self.notes, x="step", bins=np.linspace(0, max_step, 21))
-        canvas.draw()
-        canvas.get_tk_widget().grid(row=row, column=col)
+        canvas2 = FigureCanvasTkAgg(fig1, master=self)
+        canvas2.draw()
+        canvas2.get_tk_widget().grid(row=row, column=1)
 
-        fig = Figure(figsize=[15, 5])
-        canvas = FigureCanvasTkAgg(fig, master=self)
+
+        fig3.add_subplot(131)
         max_duration = np.percentile(self.notes['duration'], 100 - 2.5)
         sns.histplot(self.notes, x="duration", bins=np.linspace(0, max_duration, 21))
-        canvas.draw()
-        canvas.get_tk_widget().grid(row=row, column=col)
+        canvas3 = FigureCanvasTkAgg(fig1, master=self)
+        canvas3.draw()
+        canvas3.get_tk_widget().grid(row=row, column=2)
+        
 
+ 
     def play_MIDI(self):
         if self.musicfile == None:
             self.open_MIDI()
@@ -176,20 +172,16 @@ class App(tk.Tk):
         if self.musicfile == None: return
         self.notes = dm.Model.midi_to_notes(self.musicfile)
         self.plot_MIDI(5,4)
+        #self.plot_distributions(5, 4)
 
     def train_model(self):
-        self.data_model.train_model(10)
+        self.trained = True
+        self.data_model.train_model(70)
 
     def generate_song(self):
-        self.musicfile = self.data_model.predict_notes()
-        self.play_MIDI()
-        self.plot_MIDI(5,4)
-
-    def asksaveasfile(self):
-        return asksaveasfile(mode='wb')
-
-    def askopenfile(self):
-        return askopenfile(mode='r')
+        if self.trained == True:
+            self.notes = self.data_model.predict_notes()
+            self.musicfile.write(self.notes)
         
 
 def main():

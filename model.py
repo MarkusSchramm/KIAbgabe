@@ -7,15 +7,21 @@ import pandas as pd
 import pretty_midi as pm
 from typing import Optional
 
+
 class Model():
     def __init__(self):
+
+        #seed
         self.seed = 42
         tf.random.set_seed(self.seed)
         np.random.seed(self.seed)
+        
+        #init var
         self.key_order = ['pitch', 'step', 'duration']
         self.vocab_size = 128
-        self.sequence_length = 10
+        self.sequence_length = 20
 
+        #training data
         self.data_dir = pathlib.Path('data/maestro-v2.0.0')
         if not self.data_dir.exists():
             tf.keras.utils.get_file(
@@ -25,6 +31,7 @@ class Model():
                 cache_dir='.', cache_subdir='data',
                 )
         
+        #prepare data
         self.filenames = glob.glob(str(self.data_dir/'**/*.mid*'))
         print(len(self.filenames), ' training files available.')
         self.sample_file = self.filenames[1]
@@ -51,22 +58,33 @@ class Model():
             .cache()
             .prefetch(tf.data.experimental.AUTOTUNE))
 
+        #Input
         self.input_shape = (self.sequence_length, 3)
-        self.learning_rate = 0.005
+        self.learning_rate = 0.004
         self.inputs = tf.keras.Input(self.input_shape)
+        
+        #Hidden - LSTM
         self.x = tf.keras.layers.LSTM(128)(self.inputs)
+        
+        #Output -Dense
         self.outputs = {
             'pitch': tf.keras.layers.Dense(128, name='pitch')(self.x),
-            'step': tf.keras.layers.Dense(1, name='step')(self.x),
+            'step': tf.keras.layers.Dense(1, name='step')(self.x),           
             'duration': tf.keras.layers.Dense(1, name='duration')(self.x),
         }
+
+        #define model
         self.model = tf.keras.Model(self.inputs, self.outputs)
+        
+        #loss and optimizer
         self.loss = {
             'pitch': tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
             'step': self.mse_with_positive_pressure,
             'duration': self.mse_with_positive_pressure,
         }
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.learning_rate)
+        
+        #compile and evaluate model
         self.model.compile(loss=self.loss, optimizer=self.optimizer)
         self.model.summary()
         self.losses = self.model.evaluate(self.train_ds, return_dict=True)
@@ -80,6 +98,8 @@ class Model():
             optimizer=self.optimizer,
             )
         self.model.evaluate(self.train_ds, return_dict=True)
+        
+        #training checkpoints
         self.callbacks = [
             tf.keras.callbacks.ModelCheckpoint(
                 filepath='./training_checkpoints/ckpt_{epoch}',
@@ -100,6 +120,7 @@ class Model():
             )
 
     def midi_to_notes(midi_file: str) -> pd.DataFrame:
+        #prepare midi_notes for tf
         if midi_file == '': return pd.DataFrame()
         midi_data = pm.PrettyMIDI(midi_file)
         instrument = midi_data.instruments[0]
@@ -127,6 +148,7 @@ class Model():
         instrument_name: Optional[str] = 'Acoustic Grand Piano',
         out_file: Optional[str] = 'new.mid' 
         ) -> pm.PrettyMIDI:
+        #transfer tf_data to midi_data
         midi_data = pm.PrettyMIDI()
         instrument = pm.Instrument(
             program=pm.instrument_name_to_program(
@@ -155,7 +177,7 @@ class Model():
         seq_length: int,
         vocab_size = 128,
     ) -> tf.data.Dataset:
-        """Returns TF Dataset of sequence and label examples."""
+        #Returns TF Dataset of sequence and label examples. From pd to tf
         seq_length = seq_length+1
 
         # Take 1 extra for the labels
@@ -182,6 +204,7 @@ class Model():
         return sequences.map(split_labels, num_parallel_calls=tf.data.AUTOTUNE)
     
     def mse_with_positive_pressure(self, y_true: tf.Tensor, y_pred: tf.Tensor):
+        #custom mean square error loss function
         mse = (y_true - y_pred) ** 2
         positive_pressure = 10 * tf.maximum(-y_pred, 0.0)
         return tf.reduce_mean(mse + positive_pressure)
@@ -192,7 +215,7 @@ class Model():
         model: tf.keras.Model, 
         temperature: float = 1.0
     ) -> tuple[int, float, float]:
-        """Generates a note as a tuple of (pitch, step, duration), using a trained sequence model."""
+        #Generates a note as a tuple of (pitch, step, duration), using a trained sequence model.
 
         assert temperature > 0
 
@@ -216,9 +239,8 @@ class Model():
 
         return int(pitch), float(step), float(duration)
 
-    def predict_notes(self):
+    def predict_notes(self, num_predictions: int = 120):
         temperature = 2.0
-        num_predictions = 120
 
         sample_notes = np.stack([self.raw_notes[key] for key in self.key_order], axis=1)
 
@@ -244,10 +266,12 @@ class Model():
 
         self.out_pm = Model.notes_to_midi(generated_notes)
         return generated_notes
-    
 
 def main():
     mo = Model()
+    mo.train_model(5)
+    mo.predict_notes()
+
 
 if __name__=='__main__':
     main()
